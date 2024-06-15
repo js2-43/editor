@@ -28,6 +28,7 @@ export function parseSchema(ctx: MarkdanContext) {
   // 生成新的 view blocks
   // 同时生成一份受影响的 viewLines 集合
   const deleteIds = new Set()
+  const addIds = new Set()
   affectedElements.forEach(({
     id,
     behavior,
@@ -40,7 +41,7 @@ export function parseSchema(ctx: MarkdanContext) {
       if (!groupIds![0]) {
         affectedViewLines.add([id, 'delete'])
         deleteIds.add(id)
-      } else {
+      } else if (!deleteIds.has(groupIds![0]) && !addIds.has(groupIds![0])) {
         affectedViewLines.add([groupIds![0], 'change'])
       }
     } else {
@@ -65,7 +66,9 @@ export function parseSchema(ctx: MarkdanContext) {
               : null,
           })
         }
-        affectedViewLines.add([element.groupIds[0] ?? element.id, 'change'])
+        if (!deleteIds.has(element.groupIds[0] ?? element.id) && !addIds.has(element.groupIds[0] ?? element.id)) {
+          affectedViewLines.add([element.groupIds[0] ?? element.id, 'change'])
+        }
       } else {
         if (prevIndex === -1) {
           parent.push({ ...element })
@@ -85,7 +88,8 @@ export function parseSchema(ctx: MarkdanContext) {
           // 新增时需要知道一个位置
           const anchorViewLineId = elements[idx - 1]?.groupIds?.[0] ?? elements[idx - 1]?.id
           affectedViewLines.add([element.id, 'add', anchorViewLineId])
-        } else {
+          addIds.add(element.id)
+        } else if (!deleteIds.has(element.groupIds[0]) && !addIds.has(element.groupIds[0])) {
           affectedViewLines.add([element.groupIds[0], 'change'])
         }
       }
@@ -94,11 +98,11 @@ export function parseSchema(ctx: MarkdanContext) {
 
   affectedElements.clear()
 
-  affectedViewLines.forEach((item) => {
-    if (deleteIds.has(item[0]) && item[1] !== 'delete') {
-      affectedViewLines.delete(item)
-    }
-  })
+  // affectedViewLines.forEach((item) => {
+  //   if (item[1] === 'change' && (deleteIds.has(item[0]) || addIds.has(item[0]))) {
+  //     affectedViewLines.delete(item)
+  //   }
+  // })
 
   return affectedViewLines
 }
@@ -112,9 +116,10 @@ function getViewBlock(groupIds: string[], viewBlocks: MarkdanViewBlock[]) {
   let item: MarkdanViewBlock
 
   while (idx < len) {
-    item = parent.find(item => item.id === groupIds[idx])!
+    item = parent.find(sub => sub.id === groupIds[idx])!
 
     parent = item.children ?? (item.children = [])
+
     idx++
   }
 

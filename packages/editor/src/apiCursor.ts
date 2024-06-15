@@ -99,7 +99,9 @@ function addCursor(range: EditorSelectionRange, ctx: MarkdanContext) {
     'data-focus-block': focusBlock,
     'data-focus-offset': `${focusOffset}`,
   })
-  oCursor.style.cssText = `left: ${viewLeft + lineNumber.getBoundingClientRect().width + scrollX - 1}px;`
+
+  const lineNumberWidth = lineNumber ? lineNumber.getBoundingClientRect().width : 0
+  oCursor.style.cssText = `left: ${viewLeft + lineNumberWidth + scrollX - 1}px;`
     + `top: ${t}px;`
     + `height: ${element.lineHeight}px;`
     + `transform: translate(${-scrollX}px, ${-scrollY}px)`
@@ -117,7 +119,7 @@ function renderRangeRectangles(range: EditorSelectionRange, ctx: MarkdanContext)
       scrollbar: { scrollX, scrollY },
     },
   } = ctx
-  const lineNumberWidth = lineNumber.getBoundingClientRect().width
+  const lineNumberWidth = lineNumber ? lineNumber.getBoundingClientRect().width : 0
 
   ;(range.rectangles ?? []).forEach((item) => {
     const oRange = document.createElement('div')

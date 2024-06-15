@@ -7,11 +7,16 @@ export interface MarkdanSchemaElement {
   version: number
   versionNonce: number
   updated: number
-  isDeleted: boolean
+  // isDeleted: boolean
+
+  isContainer: boolean
+  isBlock: boolean
+  isSymbol: boolean
 
   type: string /** ElementType */
   groupIds: string[]
   content: string
+  attrs?: Record<string, string>
 }
 
 let version = 1
@@ -29,7 +34,19 @@ export function createSchemaApi(ctx: MarkdanContext) {
 
   let trace = true
 
-  function createElement<T extends string>(type: T, groupIds: string[] = [], content = ''): MarkdanSchemaElement {
+  function createElement<T extends string>(
+    type: T,
+    groupIds: string[] = [],
+    content = '',
+    props: Partial<Pick<MarkdanSchemaElement, 'attrs' | 'isContainer' | 'isBlock' | 'isSymbol'>> = {},
+  ): MarkdanSchemaElement {
+    const {
+      attrs,
+      isContainer = false,
+      isBlock = false,
+      isSymbol = false,
+    } = props
+
     return {
       id: createRandomId(),
       type,
@@ -38,7 +55,10 @@ export function createSchemaApi(ctx: MarkdanContext) {
       version: version++,
       versionNonce: Math.random() * 10,
       updated: Date.now(),
-      isDeleted: false,
+      attrs,
+      isContainer,
+      isBlock,
+      isSymbol,
     }
   }
 

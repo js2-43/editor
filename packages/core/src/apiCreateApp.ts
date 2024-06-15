@@ -6,12 +6,14 @@ import type { DeepPartialObject } from '@markdan/helper'
 import { EditorSelection } from './selection'
 import EventEmitter from './emitter'
 import { registerEventHandler } from './events'
-import type { MarkdanSchema } from './schema'
+import type { MarkdanSchema, MarkdanSchemaElement } from './schema'
 import { createSchemaApi } from './schema'
 import type { MarkdanCommand } from './command'
 import { breakLineCommand, createCommandApi, deleteContentCommand, insertCommand, redoCommand, undoCommand } from './command'
 import { type MarkdanPlugin, createPluginApi } from './plugin'
 import { EditorHistory } from './history'
+
+import templateElements from './data/template.element.json'
 
 export interface Markdan {
   version: string
@@ -36,6 +38,7 @@ export interface MarkdanConfig {
   lastTop: number
   /** viewer 容器中最大宽度 */
   maxWidth: number
+  gap: number
 }
 
 export interface MarkdanContext {
@@ -111,11 +114,13 @@ export function createApp() {
         }, containerRect.width, containerRect.height),
         originalOptions: options,
         theme: options.theme ?? initialTheme,
-        lineNumber: !!options.lineNumber,
+        // lineNumber: !!options.lineNumber,
+        lineNumber: false, /** @todo - 暂时不用这个功能 */
         scrollbarSize: 16,
         paddingRight: 16,
         lastTop: 0,
         maxWidth: 0,
+        gap: 24,
       }
       Object.assign(ctx.config, initialConfig)
 
@@ -131,6 +136,12 @@ export function createApp() {
       ctx.history.init()
 
       // @todo - 测试数据
+      const elements = templateElements as unknown as MarkdanSchemaElement[]
+      ctx.schema.splice(0, 1, elements[0])
+      elements.slice(1).forEach((element) => {
+        ctx.schema.append(element)
+      })
+
       // ctx.schema.splice(0, 1, ctx.schema.createElement('h1', [], 'Heading 1'))
       // const h2 = ctx.schema.append(ctx.schema.createElement('h2', [], ''))
       // const strong = ctx.schema.append(ctx.schema.createElement('strong', [h2.id], 'Strong'))

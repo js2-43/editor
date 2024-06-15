@@ -1,6 +1,8 @@
 import type { EditorSelectionRange, MarkdanContext, MarkdanSchemaElement } from '@markdan/core'
 import type { AffectedViewLine, MarkdanViewBlock } from '@markdan/engine'
 import { patchRenderedElements } from '@markdan/engine'
+
+import { createElement } from '@markdan/helper'
 import { CLASS_NAMES } from './config/dom.config'
 
 export interface EditorRenderer {
@@ -39,6 +41,28 @@ function getIndexes(elements: Array<{ y: number } & Record<any, any>>, min: numb
 export function createRendererApi(el: HTMLElement, ctx: MarkdanContext): EditorRenderer {
   return {
     render(affectedViewLines: Set<AffectedViewLine>) {
+      // // @todo - 清除 HTML
+      // el.innerHTML = ''
+
+      // const domMapper = new Map([['root', el]])
+      // const viewLineElements = new Map<string, HTMLElement>()
+      // ;(templateData as unknown as MarkdanSchemaElement[]).map((element) => {
+      //   const oDom = renderElement(element, ctx)
+      //   const lastGroupId = element.groupIds.at(-1)
+      //   if (lastGroupId) {
+      //     domMapper.get(lastGroupId)!.appendChild(oDom)
+      //   } else {
+      //     domMapper.get('root')!.appendChild(oDom)
+      //     viewLineElements.set(element.id, oDom)
+      //     oDom.classList.add('view-line')
+      //   }
+
+      //   domMapper.set(element.id, oDom)
+      //   return false
+      // })
+      // document.body.clientWidth // eslint-disable-line no-unused-expressions
+      // patchRenderedElements(viewLineElements, ctx)
+
       const {
         renderedElements,
         interface: {
@@ -66,7 +90,7 @@ export function createRendererApi(el: HTMLElement, ctx: MarkdanContext): EditorR
         }
 
         const oContainer = renderElement(viewBlock, ctx)
-        oContainer.className = 'view-line'
+        // oContainer.className = 'view-line'
         mainViewer.appendChild(oContainer)
         if (viewBlock.children?.length) {
           renderChildren(viewBlock.children, oContainer, ctx)
@@ -104,6 +128,7 @@ export function createRendererApi(el: HTMLElement, ctx: MarkdanContext): EditorR
 
       elements.map((element) => {
         el.appendChild(element.element)
+        element.element.classList.add('view-line')
         element.element.style.top = `${element.y}px`
         // 设置容器最大的宽度
         ctx.config.maxWidth = Math.max(ctx.config.maxWidth, element.width)
@@ -135,7 +160,9 @@ export function createRendererApi(el: HTMLElement, ctx: MarkdanContext): EditorR
       }
 
       ctx.interface.ui.mainViewer.style.transform = `translate(-${scrollX}px, -${scrollY}px)`
-      ctx.interface.ui.lineNumber.querySelector<HTMLElement>(`.${CLASS_NAMES.editorLineNumber}`)!.style.transform = `translateY(-${scrollY}px)`
+      if (ctx.interface.ui.lineNumber) {
+        ctx.interface.ui.lineNumber.querySelector<HTMLElement>(`.${CLASS_NAMES.editorLineNumber}`)!.style.transform = `translateY(-${scrollY}px)`
+      }
     },
 
     scrollIfCurrentRangeOutOfViewer() {
@@ -178,17 +205,139 @@ function renderChildren(viewBlocks: MarkdanViewBlock[], container: HTMLElement, 
   }
 }
 
-export function renderElement(element: MarkdanSchemaElement, _ctx: MarkdanContext) {
+export function renderElement(element: MarkdanSchemaElement, ctx: MarkdanContext) {
   // @todo - 调用插件生成 Dom
-  const oDom = document.createElement(element.groupIds.length ? 'span' : 'div')
+  // const oDom = document.createElement(element.groupIds.length ? 'span' : element.content === 'Heading 1' ? 'h1' : 'div')
+  const typeMapping: Record<string, string> = {
+    heading1: 'h1',
+    heading2: 'h2',
+    taskList: 'ul',
+    listItem: 'li',
+    taskListItem: 'li',
+    unorderedList: 'ul',
+    strong: 'strong',
+    italic: 'i',
+    strikethrough: 'del',
+    code: 'code',
+    hyperlink: 'span',
+    a: 'a',
+    image: 'figure',
+    img: 'img',
+    blockquote: 'blockquote',
+    table: 'table',
+    pre: 'pre',
+    plainText: 'span',
+  }
+  const type = element.isSymbol ? 'span' : typeMapping[element.type]
+  const oDom = document.createElement(type ?? 'p')
 
   oDom.setAttribute('data-id', element.id)
+  element.isContainer && oDom.classList.add('is-container')
+  element.isBlock && oDom.classList.add('is-block')
+  element.isSymbol && oDom.classList.add('is-symbol')
+
+  if (element.type === 'hyperlink' && element.isContainer) {
+    oDom.classList.add('is-link')
+  }
+
+  if (element.type === 'taskListItem') {
+    const oCheckbox = createElement('input', { type: 'checkbox', class: 'task-checkbox' })
+    oDom.appendChild(oCheckbox)
+    oDom.style.listStyle = 'none'
+  }
+  if (element.type === 'taskList' && element.isSymbol) {
+    setTimeout(() => {
+      const oCheckbox = oDom.previousElementSibling as HTMLInputElement
+      if (oCheckbox) {
+        oCheckbox.checked = element.content.includes('[x]')
+      }
+    })
+  }
+
+  if (element.type === 'img') {
+    oDom.addEventListener('load', () => {
+      ctx.emitter.emit('img:load:success', element.id)
+    })
+
+    oDom.addEventListener('error', () => {
+      ctx.emitter.emit('img:load:failed', element.id)
+    })
+  }
+
+  if (element.attrs) {
+    Object.entries(element.attrs).forEach(([attr, value]) => {
+      oDom.setAttribute(attr, value)
+    })
+  }
 
   if (element.content) {
-    oDom.textContent = element.content
+    if (element.type === 'table') {
+      renderTable(element, oDom as HTMLTableElement, ctx)
+    } else {
+      oDom.textContent = element.content
+    }
   }
 
   return oDom
+}
+
+function renderTable(element: MarkdanSchemaElement, el: HTMLTableElement, _ctx: MarkdanContext) {
+  const { content } = element
+
+  if (!content) return
+
+  const rows = content.split(/\s+/g)
+
+  const [head, align, ...body] = rows
+
+  // |thead1|thead2|thead3|thead4|
+  // |-|:-|-:|:-:|
+  // |item1-1|item1-2|item1-3|item1-4|
+  // |item2-1|item2-2|item2-3|item2-4|
+
+  function splitItems(input: string): string[] {
+    return input.replace(/^\||\|$/g, '').split(/(?<!\\)\|/g)
+  }
+
+  const alignMapping = splitItems(align).map((item) => {
+    if (/^:(-+?):$/.test(item)) return 'middle'
+    if (/^:(-+?)/.test(item)) return 'left'
+    if (/(-+?):$/.test(item)) return 'right'
+    return 'left'
+  })
+
+  // 处理 table header
+  const oTr = createElement('tr', null)
+  splitItems(head).forEach((content, index) => {
+    const oTh = createElement('th', null)
+    const align = alignMapping[index]
+    if (align) {
+      oTh.setAttribute('align', align)
+    }
+
+    oTh.textContent = content
+    oTr.appendChild(oTh)
+  })
+  const oThead = createElement('thead', null, [oTr])
+
+  // 处理 table body
+  const oTbody = createElement('tbody', null)
+  body.forEach((item) => {
+    const oTr = createElement('tr', null)
+    splitItems(item).forEach((content, index) => {
+      const oTd = createElement('td', null)
+      const align = alignMapping[index]
+      if (align) {
+        oTd.setAttribute('align', align)
+      }
+      oTd.textContent = content
+      oTr.appendChild(oTd)
+    })
+    oTbody.appendChild(oTr)
+  })
+
+  el.appendChild(oThead)
+  el.appendChild(oTbody)
 }
 
 type ValueScope =

@@ -17,6 +17,7 @@ export function patchRenderedElements(affectedElements: Set<[HTMLElement | null,
       style: {
         lineHeight,
       },
+      gap = 0,
     },
     interface: {
       scrollbar: {
@@ -28,7 +29,7 @@ export function patchRenderedElements(affectedElements: Set<[HTMLElement | null,
     renderedElements,
   } = ctx
 
-  let { lastTop = 0 } = ctx.config
+  let lastTop = ctx.config.lastTop || gap
 
   affectedElements.forEach(([oElement, id, behavior, previewId]) => {
     if (behavior === 'delete') {
@@ -41,14 +42,14 @@ export function patchRenderedElements(affectedElements: Set<[HTMLElement | null,
       // 由于移除了一行，之后所有行都需要更新一下 y 值
       renderedElements.forEach((el) => {
         if (el.y > y) {
-          el.y -= height
+          el.y -= (height + gap)
         }
       })
 
       renderedElements.splice(originalElementIdx, 1)
       element.remove()
 
-      lastTop -= height
+      lastTop -= (height + gap)
     } else if (behavior === 'add') {
       const { width, height, left } = oElement!.getBoundingClientRect()
       const originalElementIdx = renderedElements.findIndex(item => item.id === previewId)
@@ -93,35 +94,37 @@ export function patchRenderedElements(affectedElements: Set<[HTMLElement | null,
           renderedElements.push({
             id,
             x: left - x + scrollX,
-            y: 0,
+            y: gap,
             width,
             height,
             lineHeight,
             element: oElement!,
           })
-          oElement!.style.top = `${0}px`
+          oElement!.style.top = `${gap}px`
         }
       } else {
         // 由于增加了一行，之后所有行都需要更新一下 y 值
         const prevElement = renderedElements[originalElementIdx]
         renderedElements.forEach((el) => {
           if (el.y > prevElement.y) {
-            el.y += height
+            el.y += height + gap
           }
         })
+
+        const y = prevElement.y + prevElement.height + gap
         renderedElements.splice(originalElementIdx + 1, 0, {
           id,
           x: left - x + scrollX,
-          y: prevElement.y + prevElement.height,
+          y,
           width,
           height,
           lineHeight,
           element: oElement!,
         })
 
-        oElement!.style.top = `${prevElement.y + prevElement.height}px`
+        oElement!.style.top = `${y}px`
       }
-      lastTop += height
+      lastTop += height + gap
     } else {
       const { width, height: newHeight } = oElement!.getBoundingClientRect()
 
@@ -155,4 +158,33 @@ export function patchRenderedElements(affectedElements: Set<[HTMLElement | null,
   mainViewer.style.height = `${lastTop}px`
 
   return renderedElements
+}
+
+export function handleElementsSizeChange(elementIds: string[], ctx: MarkdanContext) {
+  const {
+    schema: { elements },
+    renderedElements,
+  } = ctx
+
+  elementIds.forEach((id) => {
+    const element = elements.find(item => item.id === id)
+    if (!element) {
+      throw new Error('数据结构出错')
+    }
+
+    const parentId = element.groupIds[0] ?? element.id
+
+    const idx = renderedElements.findIndex(item => item.id === parentId)
+    const item = renderedElements[idx]
+
+    const height = item.element.getBoundingClientRect().height
+    const diffHeight = height - item.height
+
+    item.height = diffHeight
+
+    renderedElements.slice(idx + 1).forEach((el) => {
+      el.y += diffHeight
+      el.element.style.top = `${el.y}px`
+    })
+  })
 }
