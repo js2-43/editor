@@ -41,28 +41,6 @@ function getIndexes(elements: Array<{ y: number } & Record<any, any>>, min: numb
 export function createRendererApi(el: HTMLElement, ctx: MarkdanContext): EditorRenderer {
   return {
     render(affectedViewLines: Set<AffectedViewLine>) {
-      // // @todo - 清除 HTML
-      // el.innerHTML = ''
-
-      // const domMapper = new Map([['root', el]])
-      // const viewLineElements = new Map<string, HTMLElement>()
-      // ;(templateData as unknown as MarkdanSchemaElement[]).map((element) => {
-      //   const oDom = renderElement(element, ctx)
-      //   const lastGroupId = element.groupIds.at(-1)
-      //   if (lastGroupId) {
-      //     domMapper.get(lastGroupId)!.appendChild(oDom)
-      //   } else {
-      //     domMapper.get('root')!.appendChild(oDom)
-      //     viewLineElements.set(element.id, oDom)
-      //     oDom.classList.add('view-line')
-      //   }
-
-      //   domMapper.set(element.id, oDom)
-      //   return false
-      // })
-      // document.body.clientWidth // eslint-disable-line no-unused-expressions
-      // patchRenderedElements(viewLineElements, ctx)
-
       const {
         renderedElements,
         interface: {
@@ -124,7 +102,6 @@ export function createRendererApi(el: HTMLElement, ctx: MarkdanContext): EditorR
 
       const elements = renderedElements.slice(minIndex, maxIndex)
       el.innerHTML = ''
-      el.style.paddingTop = `${elements[0]?.y ?? 0}px`
 
       elements.map((element) => {
         el.appendChild(element.element)
@@ -207,7 +184,6 @@ function renderChildren(viewBlocks: MarkdanViewBlock[], container: HTMLElement, 
 
 export function renderElement(element: MarkdanSchemaElement, ctx: MarkdanContext) {
   // @todo - 调用插件生成 Dom
-  // const oDom = document.createElement(element.groupIds.length ? 'span' : element.content === 'Heading 1' ? 'h1' : 'div')
   const typeMapping: Record<string, string> = {
     heading1: 'h1',
     heading2: 'h2',
@@ -225,13 +201,28 @@ export function renderElement(element: MarkdanSchemaElement, ctx: MarkdanContext
     img: 'img',
     blockquote: 'blockquote',
     table: 'table',
+    thead: 'thead',
+    tr: 'tr',
+    th: 'th',
+    tbody: 'tbody',
+    td: 'td',
     pre: 'pre',
+    input: 'input',
+    button: 'button',
+    container: 'div',
     plainText: 'span',
   }
-  const type = element.isSymbol ? 'span' : typeMapping[element.type]
-  const oDom = document.createElement(type ?? 'p')
 
-  oDom.setAttribute('data-id', element.id)
+  if (element.type === 'button') {
+    return renderButton(element)
+  }
+
+  const type = element.isSymbol ? 'span' : typeMapping[element.type]
+  const oDom = createElement((type ?? 'p') as keyof HTMLElementTagNameMap, {
+    ...element.attrs,
+    'data-id': element.id,
+  })
+
   element.isContainer && oDom.classList.add('is-container')
   element.isBlock && oDom.classList.add('is-block')
   element.isSymbol && oDom.classList.add('is-symbol')
@@ -264,15 +255,15 @@ export function renderElement(element: MarkdanSchemaElement, ctx: MarkdanContext
     })
   }
 
-  if (element.attrs) {
-    Object.entries(element.attrs).forEach(([attr, value]) => {
-      oDom.setAttribute(attr, value)
-    })
+  if (element.type === 'input') {
+    oDom.addEventListener('focus', () => {})
+    oDom.addEventListener('mousedown', e => e.stopPropagation())
+    oDom.addEventListener('click', e => e.stopPropagation())
   }
 
   if (element.content) {
-    if (element.type === 'table') {
-      renderTable(element, oDom as HTMLTableElement, ctx)
+    if (element.type === 'input') {
+      (oDom as HTMLInputElement).value = element.content
     } else {
       oDom.textContent = element.content
     }
@@ -281,63 +272,19 @@ export function renderElement(element: MarkdanSchemaElement, ctx: MarkdanContext
   return oDom
 }
 
-function renderTable(element: MarkdanSchemaElement, el: HTMLTableElement, _ctx: MarkdanContext) {
-  const { content } = element
+function renderButton(element: MarkdanSchemaElement) {
+  const oButton = createElement('button', {
+    ...element.attrs,
+    'data-id': element.id,
+  })
 
-  if (!content) return
-
-  const rows = content.split(/\s+/g)
-
-  const [head, align, ...body] = rows
-
-  // |thead1|thead2|thead3|thead4|
-  // |-|:-|-:|:-:|
-  // |item1-1|item1-2|item1-3|item1-4|
-  // |item2-1|item2-2|item2-3|item2-4|
-
-  function splitItems(input: string): string[] {
-    return input.replace(/^\||\|$/g, '').split(/(?<!\\)\|/g)
+  if (element.icon) {
+    oButton.innerHTML = `<svg class="icon"><use xlink:href="#icon-${element.icon}" /></svg>`
+  } else if (element.content) {
+    oButton.textContent = element.content
   }
 
-  const alignMapping = splitItems(align).map((item) => {
-    if (/^:(-+?):$/.test(item)) return 'middle'
-    if (/^:(-+?)/.test(item)) return 'left'
-    if (/(-+?):$/.test(item)) return 'right'
-    return 'left'
-  })
-
-  // 处理 table header
-  const oTr = createElement('tr', null)
-  splitItems(head).forEach((content, index) => {
-    const oTh = createElement('th', null)
-    const align = alignMapping[index]
-    if (align) {
-      oTh.setAttribute('align', align)
-    }
-
-    oTh.textContent = content
-    oTr.appendChild(oTh)
-  })
-  const oThead = createElement('thead', null, [oTr])
-
-  // 处理 table body
-  const oTbody = createElement('tbody', null)
-  body.forEach((item) => {
-    const oTr = createElement('tr', null)
-    splitItems(item).forEach((content, index) => {
-      const oTd = createElement('td', null)
-      const align = alignMapping[index]
-      if (align) {
-        oTd.setAttribute('align', align)
-      }
-      oTd.textContent = content
-      oTr.appendChild(oTd)
-    })
-    oTbody.appendChild(oTr)
-  })
-
-  el.appendChild(oThead)
-  el.appendChild(oTbody)
+  return oButton
 }
 
 type ValueScope =

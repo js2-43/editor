@@ -1,4 +1,4 @@
-import { type Rectangle, amendTop, createRandomId, isPointInRect, setOriginalRange } from '@markdan/helper'
+import { type Rectangle, createRandomId, isPointInRect, setOriginalRange } from '@markdan/helper'
 import type { MarkdanContext } from './apiCreateApp'
 import { getMouseOverElement } from './selection'
 
@@ -16,7 +16,6 @@ export class EditorSelectionRange {
     ctx: MarkdanContext,
   ) {
     this.#ctx = ctx
-    // this.setRangeRectangle()
   }
 
   get uid() {
@@ -145,14 +144,12 @@ export class EditorSelectionRange {
   setStart(block: string, offset: number): EditorSelectionRange {
     this.anchorBlock = block
     this.anchorOffset = offset
-    // this.setRangeRectangle()
     return this
   }
 
   setEnd(block: string, offset: number): EditorSelectionRange {
     this.focusBlock = block
     this.focusOffset = offset
-    // this.setRangeRectangle()
     return this
   }
 
@@ -161,7 +158,6 @@ export class EditorSelectionRange {
     this.anchorOffset = anchorOffset
     this.focusBlock = focusBlock
     this.focusOffset = focusOffset
-    // this.setRangeRectangle()
     return this
   }
 
@@ -244,190 +240,6 @@ export class EditorSelectionRange {
     EditorSelectionRange.detectRange(block, offset, this.#ctx)
 
     return { block, offset }
-  }
-
-  setRangeRectangle() {
-    if (this.isCollapsed) {
-      // 闭合选区无需渲染
-      this.#rectangles = []
-      return
-    }
-
-    const {
-      config: {
-        containerRect: {
-          x,
-          y,
-        },
-      },
-      schema: { elements },
-      interface: {
-        ui: { mainViewer },
-        scrollbar: {
-          scrollX,
-          scrollY,
-        },
-      },
-      renderedElements,
-    } = this.#ctx
-
-    const {
-      anchorBlock,
-      anchorOffset,
-      focusBlock,
-      focusOffset,
-    } = this.physicsRange
-
-    const aIdx = elements.findIndex(item => item.id === anchorBlock)
-    const fIdx = elements.findIndex(item => item.id === focusBlock)
-
-    const rectangles: Rectangle[] = []
-
-    const anchorBlockElement = elements[aIdx]
-    const focusBlockElement = elements[fIdx]
-
-    const startViewLineId = anchorBlockElement.groupIds[0] ?? anchorBlock
-    const endViewLineId = focusBlockElement.groupIds[0] ?? focusBlock
-
-    const startViewLineRenderedElement = renderedElements.find(b => b.id === startViewLineId)!
-    const endViewLineRenderedElement = renderedElements.find(b => b.id === endViewLineId)!
-
-    const anchorDom = mainViewer.querySelector<HTMLElement>(`[data-id="${anchorBlock}"]`)
-    const focusDom = mainViewer.querySelector<HTMLElement>(`[data-id="${focusBlock}"]`)
-
-    // 在同一行选取
-    if (startViewLineId === endViewLineId) {
-      if (anchorDom) {
-        const originalRange = new Range()
-
-        setOriginalRange(originalRange, anchorDom, anchorOffset)
-
-        let { left: startLeft, top: startTop } = (anchorDom.firstChild?.textContent?.length ?? 0) === 0
-          ? anchorDom.getBoundingClientRect()
-          : originalRange.getBoundingClientRect()
-
-        setOriginalRange(originalRange, focusDom!, focusOffset)
-
-        let { left: endLeft } = (focusDom!.firstChild?.textContent?.length ?? 0) === 0
-          ? focusDom!.getBoundingClientRect()
-          : originalRange.getBoundingClientRect()
-
-        startLeft = startLeft - x
-        startTop = amendTop(startTop - y, startViewLineRenderedElement.y - scrollY, startViewLineRenderedElement.lineHeight, startViewLineRenderedElement.height)
-
-        endLeft = endLeft - x
-
-        rectangles.push({
-          x: startLeft,
-          y: startTop,
-          width: Math.abs(startLeft - endLeft),
-          height: startViewLineRenderedElement.lineHeight,
-        })
-      }
-
-      this.#rectangles = rectangles
-      return
-    }
-
-    // 跨行选取
-    const originalRange = new Range()
-    const startViewLine = mainViewer.querySelector<HTMLElement>(`[data-id="${startViewLineId}"]`)!
-    const endViewLine = mainViewer.querySelector<HTMLElement>(`[data-id="${endViewLineId}"]`)!
-
-    let start
-    let end
-
-    if (anchorDom) {
-      setOriginalRange(originalRange, anchorDom, anchorOffset, 'Start')
-      originalRange.setEnd(startViewLine, startViewLine.childNodes.length)
-
-      const startRect = (anchorDom.firstChild?.textContent?.length ?? 0) === 0
-        ? anchorDom.getBoundingClientRect()
-        : originalRange.getBoundingClientRect()
-
-      start = {
-        x: startRect.x - x,
-        y: startViewLineRenderedElement.y - scrollY,
-        width: startRect.width,
-        height: startViewLineRenderedElement.height,
-        _originY: startViewLineRenderedElement.y,
-      }
-    } else if (anchorBlockElement.groupIds.length === 0 && anchorOffset === 0) {
-      // 是否完全选择了 start
-      start = {
-        x: startViewLineRenderedElement.x - scrollX,
-        y: startViewLineRenderedElement.y - scrollY,
-        width: startViewLineRenderedElement.width,
-        height: startViewLineRenderedElement.height,
-      }
-    } else {
-      start = this.#rectangles[0]
-      if (start?._originY !== undefined) {
-        start.y = start._originY - scrollY
-        start.width -= 10
-      }
-    }
-
-    if (focusDom) {
-      setOriginalRange(originalRange, focusDom, focusOffset, 'End')
-      originalRange.setStart(endViewLine, 0)
-
-      const endRect = (focusDom.firstChild?.textContent?.length ?? 0) === 0
-        ? focusDom.getBoundingClientRect()
-        : originalRange.getBoundingClientRect()
-
-      end = {
-        x: endRect.x - x,
-        y: endViewLineRenderedElement.y - scrollY,
-        width: endRect.width,
-        height: endViewLineRenderedElement.height,
-        _originY: endViewLineRenderedElement.y,
-      }
-    } else if (!elements[fIdx + 1]?.groupIds.includes(endViewLineId) && focusOffset === focusBlockElement.content.length) {
-      // 是否完全选择了 end
-      end = {
-        x: endViewLineRenderedElement.x - scrollX,
-        y: endViewLineRenderedElement.y - scrollY,
-        width: endViewLineRenderedElement.width,
-        height: endViewLineRenderedElement.height,
-      }
-    } else {
-      end = this.#rectangles.at(-1)
-
-      if (end?._originY !== undefined) {
-        end.y = end._originY - scrollY
-      }
-    }
-
-    if (start) {
-      start.width = Math.max(10, start.width + 10) // 延长 10px 选择区
-      rectangles.push(start)
-    }
-
-    const [sIdx, eIdx] = [
-      renderedElements.findIndex(b => b.id === startViewLineRenderedElement.id),
-      renderedElements.findIndex(b => b.id === endViewLineRenderedElement.id),
-    ]
-
-    renderedElements
-      .slice(Math.min(sIdx, eIdx) + 1, Math.max(sIdx, eIdx))
-      .map(({ x, y, width, height }) => {
-        rectangles.push({
-          x: x - scrollX,
-          y: y - scrollY,
-          width: width + 10, // 延长 10px 选择区
-          height,
-        })
-
-        return null
-      })
-
-    if (end) {
-      end.width = Math.max(10, end.width)
-      rectangles.push(end)
-    }
-
-    this.#rectangles = rectangles
   }
 
   static detectRange(block: string, offset: number, ctx: MarkdanContext) {

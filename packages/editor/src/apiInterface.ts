@@ -117,8 +117,8 @@ function createEditorUI(ctx: MarkdanContext): EditorUI {
   }, [toolbar, main, footer])
 
   markdan.style.cssText = Object.entries(ctx.config.style).reduce((acc, curr) => {
-    return `${acc}--${curr[0].replace(/[A-Z]/, $1 => `-${$1.toLowerCase()}`)}: ${typeof curr[1] === 'string' ? curr[1] : `${curr[1]}px`};`
-  }, '')
+    return `${acc}--${curr[0].replace(/[A-Z]/, $1 => `-${$1.toLowerCase()}`)}: ${curr[1]};`
+  }, `--gap: ${ctx.config.gap}px;`)
 
   ctx.interface.ui = {
     markdan,
@@ -149,6 +149,7 @@ function init(el: HTMLElement, ctx: MarkdanContext) {
       config: {
         style,
         originalOptions,
+        gap,
       },
     } = ctx
 
@@ -162,10 +163,8 @@ function init(el: HTMLElement, ctx: MarkdanContext) {
 
     ctx.interface.ui.markdan.style.cssText = Object.entries(newStyle).reduce((acc, curr) => {
       return `${acc}--${curr[0].replace(/[A-Z]/, $1 => `-${$1.toLowerCase()}`)}: ${curr[1]};`
-    }, '')
+    }, `--gap: ${gap}px;`)
   })
-
-  ctx.interface.ui.mainViewer.style.padding = `${ctx.config.gap}px`
 
   ctx.emitter.on('selection:change', (ranges: Set<EditorSelectionRange>) => {
     ctx.interface.cursor.addCursor(ranges)

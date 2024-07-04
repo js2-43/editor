@@ -128,6 +128,7 @@ export class ScrollBar {
         scrollbarSize,
         paddingRight,
         lastTop,
+        gap,
         maxWidth,
       },
     } = this.#ctx
@@ -136,7 +137,7 @@ export class ScrollBar {
       this.#visualLength = height
       this.#contentLength = lastTop <= height
         ? height
-        : lastTop + height - lineHeight
+        : lastTop + height - lineHeight - gap * 2
 
       this.slider!.style.height = `${this.sliderSize}px`
     } else {
@@ -220,7 +221,6 @@ export class ScrollBar {
 
 export function createScrollbar(ctx: MarkdanContext): EditorScrollBarApi {
   const vertical = new ScrollBar('vertical', ctx)
-  const horizontal = new ScrollBar('horizontal', ctx)
 
   const {
     interface: {
@@ -229,14 +229,12 @@ export function createScrollbar(ctx: MarkdanContext): EditorScrollBarApi {
   } = ctx
 
   vertical.render(scrollbar)
-  horizontal.render(scrollbar)
 
   return {
     vertical,
-    horizontal,
 
     get scrollX() {
-      return horizontal.currentPosition
+      return 0
     },
 
     get scrollY() {
@@ -244,26 +242,20 @@ export function createScrollbar(ctx: MarkdanContext): EditorScrollBarApi {
     },
 
     get prevScrollX() {
-      return horizontal.prevPosition
+      return 0
     },
 
     get prevScrollY() {
       return vertical.prevPosition
     },
 
-    scroll(x, y) {
-      if (x !== undefined) {
-        horizontal.scroll(x)
-      }
+    scroll(_x, y) {
       if (y !== undefined) {
         vertical.scroll(y)
       }
     },
 
-    scrollBy(x, y) {
-      if (x !== undefined) {
-        horizontal.scrollBy(x)
-      }
+    scrollBy(_x, y) {
       if (y !== undefined) {
         vertical.scrollBy(y)
       }
@@ -271,7 +263,6 @@ export function createScrollbar(ctx: MarkdanContext): EditorScrollBarApi {
 
     update(ctx?: MarkdanContext) {
       vertical.update(ctx)
-      horizontal.update(ctx)
     },
   } as EditorScrollBarApi
 }

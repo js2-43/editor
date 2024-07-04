@@ -113,18 +113,15 @@ export function setOriginalRange(range: Range, el: HTMLElement, offset: number, 
 /**
  * 修正选区中的 top 值，消除 DOM 的差异
  */
-export function amendTop(top: number, viewLineTop: number, lineHeight: number | string, max: number) {
-  if (top <= viewLineTop) return viewLineTop
+export function correctionCursorTop(cursorTop: number, elementTop: number, lineHeight: string, paddingTop: string | number) {
+  if (cursorTop <= elementTop) return elementTop
 
-  const height = typeof lineHeight === 'string' ? parseInt(lineHeight) : lineHeight
-  const half = height / 2
+  const diff = Math.abs(elementTop - cursorTop)
 
-  let vTop = viewLineTop
-  while (vTop < max && top > vTop + half) {
-    vTop += height
-  }
+  let p = parseFloat(paddingTop as string)
+  p = Number.isNaN(p) ? 0 : p
 
-  return vTop
+  return Math.floor(diff / parseFloat(lineHeight)) * parseFloat(lineHeight) + elementTop + p
 }
 
 export function createElement<T extends null = null> (tagName: T, props: null, children: Array<string | Text | HTMLElement | DocumentFragment>): Text

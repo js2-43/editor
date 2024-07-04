@@ -180,11 +180,15 @@ export function handleElementsSizeChange(elementIds: string[], ctx: MarkdanConte
     const height = item.element.getBoundingClientRect().height
     const diffHeight = height - item.height
 
-    item.height = diffHeight
+    item.height = height
+
+    ctx.config.lastTop += diffHeight
 
     renderedElements.slice(idx + 1).forEach((el) => {
       el.y += diffHeight
       el.element.style.top = `${el.y}px`
     })
   })
+
+  ctx.interface.ui.mainViewer.style.height = `${ctx.config.lastTop}px`
 }

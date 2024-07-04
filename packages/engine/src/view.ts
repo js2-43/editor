@@ -98,12 +98,6 @@ export function parseSchema(ctx: MarkdanContext) {
 
   affectedElements.clear()
 
-  // affectedViewLines.forEach((item) => {
-  //   if (item[1] === 'change' && (deleteIds.has(item[0]) || addIds.has(item[0]))) {
-  //     affectedViewLines.delete(item)
-  //   }
-  // })
-
   return affectedViewLines
 }
 

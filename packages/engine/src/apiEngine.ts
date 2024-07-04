@@ -18,4 +18,8 @@ export function createEngineApi(ctx: MarkdanContext) {
   ctx.emitter.on('img:load:failed', (_id: string) => {
     // @todo - 处理图片加载失败
   })
+
+  ctx.emitter.on('elements:size:change', (ids: string[]) => {
+    handleElementsSizeChange(ids, ctx)
+  })
 }
