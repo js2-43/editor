@@ -82,20 +82,6 @@ export function registerEventHandler(ctx: MarkdanContext) {
 
   function handleMouseDown(e: MouseEvent) {
     ctx.selection.handleMouseDown(e)
-
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
-  }
-
-  function handleMouseMove(e: MouseEvent) {
-    ctx.selection.handleMouseMove(e)
-  }
-
-  function handleMouseUp(e: MouseEvent) {
-    ctx.selection.handleMouseUp(e)
-
-    document.removeEventListener('mousemove', handleMouseMove)
-    document.removeEventListener('mouseup', handleMouseUp)
   }
 
   let wheelStartPoint: Point = { x: 0, y: 0 }
@@ -142,7 +128,6 @@ export function registerEventHandler(ctx: MarkdanContext) {
 
   ctx.emitter.on('editor:focus', handleEditorFocus)
   ctx.emitter.on('editor:mouse:down', handleMouseDown)
-  ctx.emitter.on('editor:mouse:up', handleMouseUp)
   ctx.emitter.on('editor:keydown', handleKeydown)
 
   ctx.emitter.on('editor:scroll', handleEditorScroll)

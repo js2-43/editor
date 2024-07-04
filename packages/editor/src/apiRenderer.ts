@@ -1,6 +1,8 @@
 import type { EditorSelectionRange, MarkdanContext, MarkdanSchemaElement } from '@markdan/core'
 import type { AffectedViewLine, MarkdanViewBlock } from '@markdan/engine'
 import { patchRenderedElements } from '@markdan/engine'
+
+import { createElement } from '@markdan/helper'
 import { CLASS_NAMES } from './config/dom.config'
 
 export interface EditorRenderer {
@@ -66,7 +68,7 @@ export function createRendererApi(el: HTMLElement, ctx: MarkdanContext): EditorR
         }
 
         const oContainer = renderElement(viewBlock, ctx)
-        oContainer.className = 'view-line'
+        // oContainer.className = 'view-line'
         mainViewer.appendChild(oContainer)
         if (viewBlock.children?.length) {
           renderChildren(viewBlock.children, oContainer, ctx)
@@ -100,10 +102,10 @@ export function createRendererApi(el: HTMLElement, ctx: MarkdanContext): EditorR
 
       const elements = renderedElements.slice(minIndex, maxIndex)
       el.innerHTML = ''
-      el.style.paddingTop = `${elements[0]?.y ?? 0}px`
 
       elements.map((element) => {
         el.appendChild(element.element)
+        element.element.classList.add('view-line')
         element.element.style.top = `${element.y}px`
         // 设置容器最大的宽度
         ctx.config.maxWidth = Math.max(ctx.config.maxWidth, element.width)
@@ -135,7 +137,9 @@ export function createRendererApi(el: HTMLElement, ctx: MarkdanContext): EditorR
       }
 
       ctx.interface.ui.mainViewer.style.transform = `translate(-${scrollX}px, -${scrollY}px)`
-      ctx.interface.ui.lineNumber.querySelector<HTMLElement>(`.${CLASS_NAMES.editorLineNumber}`)!.style.transform = `translateY(-${scrollY}px)`
+      if (ctx.interface.ui.lineNumber) {
+        ctx.interface.ui.lineNumber.querySelector<HTMLElement>(`.${CLASS_NAMES.editorLineNumber}`)!.style.transform = `translateY(-${scrollY}px)`
+      }
     },
 
     scrollIfCurrentRangeOutOfViewer() {
@@ -178,17 +182,109 @@ function renderChildren(viewBlocks: MarkdanViewBlock[], container: HTMLElement, 
   }
 }
 
-export function renderElement(element: MarkdanSchemaElement, _ctx: MarkdanContext) {
+export function renderElement(element: MarkdanSchemaElement, ctx: MarkdanContext) {
   // @todo - 调用插件生成 Dom
-  const oDom = document.createElement(element.groupIds.length ? 'span' : 'div')
+  const typeMapping: Record<string, string> = {
+    heading1: 'h1',
+    heading2: 'h2',
+    taskList: 'ul',
+    listItem: 'li',
+    taskListItem: 'li',
+    unorderedList: 'ul',
+    strong: 'strong',
+    italic: 'i',
+    strikethrough: 'del',
+    code: 'code',
+    hyperlink: 'span',
+    a: 'a',
+    image: 'figure',
+    img: 'img',
+    blockquote: 'blockquote',
+    table: 'table',
+    thead: 'thead',
+    tr: 'tr',
+    th: 'th',
+    tbody: 'tbody',
+    td: 'td',
+    pre: 'pre',
+    input: 'input',
+    button: 'button',
+    container: 'div',
+    plainText: 'span',
+  }
 
-  oDom.setAttribute('data-id', element.id)
+  if (element.type === 'button') {
+    return renderButton(element)
+  }
+
+  const type = element.isSymbol ? 'span' : typeMapping[element.type]
+  const oDom = createElement((type ?? 'p') as keyof HTMLElementTagNameMap, {
+    ...element.attrs,
+    'data-id': element.id,
+  })
+
+  element.isContainer && oDom.classList.add('is-container')
+  element.isBlock && oDom.classList.add('is-block')
+  element.isSymbol && oDom.classList.add('is-symbol')
+
+  if (element.type === 'hyperlink' && element.isContainer) {
+    oDom.classList.add('is-link')
+  }
+
+  if (element.type === 'taskListItem') {
+    const oCheckbox = createElement('input', { type: 'checkbox', class: 'task-checkbox' })
+    oDom.appendChild(oCheckbox)
+    oDom.style.listStyle = 'none'
+  }
+  if (element.type === 'taskList' && element.isSymbol) {
+    setTimeout(() => {
+      const oCheckbox = oDom.previousElementSibling as HTMLInputElement
+      if (oCheckbox) {
+        oCheckbox.checked = element.content.includes('[x]')
+      }
+    })
+  }
+
+  if (element.type === 'img') {
+    oDom.addEventListener('load', () => {
+      ctx.emitter.emit('img:load:success', element.id)
+    })
+
+    oDom.addEventListener('error', () => {
+      ctx.emitter.emit('img:load:failed', element.id)
+    })
+  }
+
+  if (element.type === 'input') {
+    oDom.addEventListener('focus', () => {})
+    oDom.addEventListener('mousedown', e => e.stopPropagation())
+    oDom.addEventListener('click', e => e.stopPropagation())
+  }
 
   if (element.content) {
-    oDom.textContent = element.content
+    if (element.type === 'input') {
+      (oDom as HTMLInputElement).value = element.content
+    } else {
+      oDom.textContent = element.content
+    }
   }
 
   return oDom
+}
+
+function renderButton(element: MarkdanSchemaElement) {
+  const oButton = createElement('button', {
+    ...element.attrs,
+    'data-id': element.id,
+  })
+
+  if (element.icon) {
+    oButton.innerHTML = `<svg class="icon"><use xlink:href="#icon-${element.icon}" /></svg>`
+  } else if (element.content) {
+    oButton.textContent = element.content
+  }
+
+  return oButton
 }
 
 type ValueScope =

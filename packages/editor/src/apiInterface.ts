@@ -19,7 +19,7 @@ export interface EditorUI {
   main: HTMLElement
   cursor: HTMLElement
   scrollbar: HTMLElement
-  lineNumber: HTMLElement
+  lineNumber: HTMLElement | null
   container: HTMLElement
   mainViewer: HTMLElement
   virtualInput: HTMLTextAreaElement
@@ -29,7 +29,7 @@ export interface MarkdanInterface {
   ui: EditorUI
   cursor: EditorCursorApi
   scrollbar: EditorScrollBarApi
-  lineNumber: EditorLineNumberAPI
+  lineNumber: EditorLineNumberAPI | null
   renderer: EditorRenderer
 }
 
@@ -94,7 +94,7 @@ function initObserver(elements: Element[], callback?: (...args: any[]) => any) {
  * ```
  */
 function createEditorUI(ctx: MarkdanContext): EditorUI {
-  const lineNumber = createElement('aside', null)
+  const lineNumber = ctx.config.lineNumber ? createElement('aside', null) : null
   const cursor = createElement('div', null)
   const scrollbar = createElement('div', null)
 
@@ -108,7 +108,7 @@ function createEditorUI(ctx: MarkdanContext): EditorUI {
   const main = createElement(
     'main',
     { class: CLASS_NAMES.editorMain },
-    [cursor, scrollbar, lineNumber, container],
+    [cursor, scrollbar, ...(ctx.config.lineNumber ? [lineNumber!] : []), container],
   )
   const footer = createElement('footer', { class: CLASS_NAMES.editorFooter })
 
@@ -117,8 +117,8 @@ function createEditorUI(ctx: MarkdanContext): EditorUI {
   }, [toolbar, main, footer])
 
   markdan.style.cssText = Object.entries(ctx.config.style).reduce((acc, curr) => {
-    return `${acc}--${curr[0].replace(/[A-Z]/, $1 => `-${$1.toLowerCase()}`)}: ${typeof curr[1] === 'string' ? curr[1] : `${curr[1]}px`};`
-  }, '')
+    return `${acc}--${curr[0].replace(/[A-Z]/, $1 => `-${$1.toLowerCase()}`)}: ${curr[1]};`
+  }, `--gap: ${ctx.config.gap}px;`)
 
   ctx.interface.ui = {
     markdan,
@@ -149,6 +149,7 @@ function init(el: HTMLElement, ctx: MarkdanContext) {
       config: {
         style,
         originalOptions,
+        gap,
       },
     } = ctx
 
@@ -161,17 +162,18 @@ function init(el: HTMLElement, ctx: MarkdanContext) {
     }, containerRect.width, containerRect.height)
 
     ctx.interface.ui.markdan.style.cssText = Object.entries(newStyle).reduce((acc, curr) => {
-      return `${acc}--${curr[0].replace(/[A-Z]/, $1 => `-${$1.toLowerCase()}`)}: ${typeof curr[1] === 'string' ? curr[1] : `${curr[1]}px`};`
-    }, '')
+      return `${acc}--${curr[0].replace(/[A-Z]/, $1 => `-${$1.toLowerCase()}`)}: ${curr[1]};`
+    }, `--gap: ${gap}px;`)
   })
+
   ctx.emitter.on('selection:change', (ranges: Set<EditorSelectionRange>) => {
     ctx.interface.cursor.addCursor(ranges)
-    ctx.interface.lineNumber.setActive()
+    ctx.interface.lineNumber?.setActive()
   })
   ctx.emitter.on('render', (blocks) => {
     ctx.config.maxWidth = 0
     ctx.interface.renderer.render(blocks)
-    ctx.interface.lineNumber.update()
+    ctx.interface.lineNumber?.update()
     ctx.interface.scrollbar.update()
   })
   ctx.emitter.on('scrollbar:change', (options) => {
@@ -192,7 +194,7 @@ function init(el: HTMLElement, ctx: MarkdanContext) {
     document.addEventListener('keydown', (e) => {
       ctx.emitter.emit('editor:keydown', e)
     })
-    ctx.interface.lineNumber.update()
+    ctx.interface.lineNumber?.update()
   })
 }
 
@@ -201,7 +203,7 @@ export function createEditorInterfaceApi(el: HTMLElement, ctx: MarkdanContext): 
 
   const cursor = createCursorApi(ctx)
   const scrollbar = createScrollbar(ctx)
-  const lineNumber = createLineNumber(ctx)
+  const lineNumber = ctx.config.lineNumber ? createLineNumber(ctx) : null
 
   const renderer = createRendererApi(ui.mainViewer, ctx)
 

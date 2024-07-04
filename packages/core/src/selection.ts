@@ -2,6 +2,7 @@ import type { Point, Rectangle } from '@markdan/helper'
 import { getBlockIdByNode, getBlockPositionByClick, getIntersectionArea, getModifierKeys, isBothCtrlAndShiftKeys, isOnlyAltKey, isOnlyCtrlKey, isOnlyShiftKey, isPointInRect, isRectContainRect, isRectCross } from '@markdan/helper'
 import type { MarkdanContext } from './apiCreateApp'
 import { EditorSelectionRange } from './range'
+import type { MarkdanSchemaElement } from './schema'
 
 export function getMouseOverElement(point: Point, ctx: MarkdanContext) {
   const {
@@ -9,6 +10,7 @@ export function getMouseOverElement(point: Point, ctx: MarkdanContext) {
       containerRect,
       lastTop,
       scrollbarSize,
+      gap,
     },
     interface: {
       scrollbar: {
@@ -16,7 +18,6 @@ export function getMouseOverElement(point: Point, ctx: MarkdanContext) {
         scrollY,
       },
     },
-    schema: { elements },
     renderedElements,
     emitter,
   } = ctx
@@ -24,11 +25,11 @@ export function getMouseOverElement(point: Point, ctx: MarkdanContext) {
   const x = point.x - containerRect.x + scrollX
   const y = point.y - containerRect.y + scrollY
 
-  const overViewLine = y > lastTop
+  const overViewLine = y > lastTop - gap / 2
     ? renderedElements.at(-1)
-    : y <= 0
+    : y <= gap / 2
       ? renderedElements[0]
-      : renderedElements.find(item => y >= item.y && y <= item.y + item.height)
+      : renderedElements.find(item => y >= item.y - gap / 2 && y <= item.y + item.height + gap / 2)
 
   if (!overViewLine) {
     throw new Error('程序出错')
@@ -40,7 +41,6 @@ export function getMouseOverElement(point: Point, ctx: MarkdanContext) {
     width: containerRect.width - scrollbarSize - 4,
     height: containerRect.height - scrollbarSize - 4,
   })
-  const isOutOfViewLine = !isPointInRect({ x, y }, overViewLine)
 
   if (isOutOfContainer) {
     // 当前鼠标没在容器内部，让容器滚动
@@ -50,29 +50,25 @@ export function getMouseOverElement(point: Point, ctx: MarkdanContext) {
       action: 'scrollBy',
     })
   }
+  const isOutOfViewLine = !isPointInRect({ x, y }, overViewLine)
 
-  if (isOutOfContainer || isOutOfViewLine) {
-    let idx = elements.findIndex(item => overViewLine.id === item.id)
-    if (idx === -1) {
-      throw new Error('程序出错')
-    }
+  if (isOutOfViewLine) {
+    const newX = x < overViewLine.x
+      ? overViewLine.x + 1
+      : x > overViewLine.x + overViewLine.width
+        ? overViewLine.x + overViewLine.width - 1
+        : x
 
-    if (x < overViewLine.x) {
-      // 选前面
-      return {
-        block: overViewLine.id,
-        offset: 0,
-      }
-    }
-    let block = elements[idx]
-    while (elements[idx + 1]?.groupIds[0] === overViewLine.id) {
-      block = elements[++idx]
-    }
+    const newY = y < overViewLine.y
+      ? overViewLine.y + 1
+      : y > overViewLine.y + overViewLine.height
+        ? overViewLine.y + overViewLine.height - 1
+        : y
 
-    return {
-      block: block.id,
-      offset: block.content.length,
-    }
+    return getMouseOverElement({
+      x: Math.max(0, Math.min(containerRect.x + containerRect.width, newX + containerRect.x - scrollX)),
+      y: Math.max(0, Math.min(lastTop, newY + containerRect.y - scrollY)),
+    }, ctx)
   }
 
   const { node, offset } = getBlockPositionByClick({
@@ -95,6 +91,11 @@ export class EditorSelection {
 
   // 按住 alt 键点击了当前选区
   isClickCurrentWithAltKey = false
+
+  /** 选区黑名单，在黑名单里面的元素及其下面的子元素都不应该被选区选中 */
+  #blackList: string[] = [
+    '.table-toolbar',
+  ]
 
   constructor(ctx: MarkdanContext) {
     this.#ctx = ctx
@@ -129,6 +130,10 @@ export class EditorSelection {
   get isOnlyOneCollapsedRange() {
     const ranges = [...this.ranges]
     return ranges.length === 1 && ranges[0].isCollapsed
+  }
+
+  get blackList() {
+    return this.#blackList
   }
 
   addRange(
@@ -178,6 +183,13 @@ export class EditorSelection {
    * 4. 无 alt | shift 按键操作时，清空所有选区，新增一个选区
    */
   handleMouseDown(e: MouseEvent) {
+    if (this.inBlackList(e.target as HTMLElement)) {
+      return
+    }
+
+    document.addEventListener('mousemove', this.handleMouseMove)
+    document.addEventListener('mouseup', this.handleMouseUp)
+
     const keys = getModifierKeys(e)
 
     const { block, offset } = getMouseOverElement({
@@ -217,7 +229,11 @@ export class EditorSelection {
     }
   }
 
-  handleMouseMove(e: MouseEvent) {
+  handleMouseMove = (e: MouseEvent) => {
+    if (this.inBlackList(e.target as HTMLElement)) {
+      return
+    }
+
     if (!this.#currentRange) {
       return
     }
@@ -244,7 +260,14 @@ export class EditorSelection {
     })
   }
 
-  handleMouseUp(e: MouseEvent) {
+  handleMouseUp = (e: MouseEvent) => {
+    document.removeEventListener('mousemove', this.handleMouseMove)
+    document.removeEventListener('mouseup', this.handleMouseUp)
+
+    if (this.inBlackList(e.target as HTMLElement)) {
+      return
+    }
+
     if (this.isClickCurrentWithAltKey) {
       this.isClickCurrentWithAltKey = false
       return
@@ -258,6 +281,7 @@ export class EditorSelection {
       y: e.clientY,
     }, this.#ctx)
 
+    this.#focusAfterSelect()
     this.setRange(block, offset)
   }
 
@@ -356,6 +380,20 @@ export class EditorSelection {
     this.#ctx.emitter.emit('selection:change', this.ranges)
   }
 
+  inBlackList(el: Element) {
+    const {
+      interface: {
+        ui: { mainViewer },
+      },
+    } = this.#ctx
+
+    if (!this.blackList.length) return false
+
+    const blackListElements = [].slice.apply(mainViewer.querySelectorAll(this.blackList.join(','))) as HTMLElement[]
+
+    return blackListElements.some(element => element.contains(el))
+  }
+
   /**
    * 检测用户是否点击到了某个选区
    */
@@ -387,6 +425,9 @@ export class EditorSelection {
     return range ?? false
   }
 
+  /**
+   * @todo - 选区绘制形式变更，需要调整逻辑
+   */
   #getIntersectionRanges() {
     const currentRange = this.#currentRange
     const ranges = [...this.ranges].filter(r => r !== currentRange)
@@ -400,10 +441,105 @@ export class EditorSelection {
     })
   }
 
+  #focusAfterSelect() {
+    const {
+      schema: { elements },
+      interface: {
+        ui: { mainViewer },
+      },
+    } = this.#ctx
+
+    const affectedElementIds = new Set<string>()
+    ;[].slice.apply(mainViewer.querySelectorAll('.focus')).forEach((el: HTMLElement) => {
+      el.classList.remove('focus')
+      affectedElementIds.add(el.getAttribute('data-id') || '')
+    })
+
+    this.ranges.forEach((range) => {
+      const anchorElement = elements.find(item => item.id === range.anchorBlock)!
+      const focusElement = elements.find(item => item.id === range.focusBlock)!
+
+      setFocus(anchorElement, range.anchorOffset, elements)
+        .forEach(id => affectedElementIds.add(id))
+      setFocus(focusElement, range.focusOffset, elements)
+        .forEach(id => affectedElementIds.add(id))
+    })
+
+    const affectedBlocks = elements.filter(item => affectedElementIds.has(item.id))
+      .map(item => item.groupIds[0] ?? item.id)
+
+    this.#ctx.emitter.emit('elements:size:change', affectedBlocks)
+  }
+
   static isRectIntersection(rect1: Rectangle, rects: Rectangle[]): boolean {
     return rects.some((rect2) => {
       return (isRectCross(rect1, rect2) || isRectContainRect(rect1, rect2))
         && getIntersectionArea(rect1, rect2) > 1
     })
   }
+}
+
+function getContainer(groupIds: string[], elements: MarkdanSchemaElement[]) {
+  let element: MarkdanSchemaElement | null = null
+  let i = groupIds.length
+
+  while (i >= 0) {
+    const item = elements.find(el => el.id === groupIds[i])
+    if (item?.isContainer) {
+      element = item
+      break
+    }
+    i--
+  }
+
+  return element?.isBlock && element.type !== 'image' ? null : element
+}
+function getTableContainer(groupIds: string[], elements: MarkdanSchemaElement[]) {
+  let element: MarkdanSchemaElement | null = null
+  let i = groupIds.length
+
+  while (i >= 0) {
+    const item = elements.find(el => el.id === groupIds[i])
+    if (item && item.isContainer && item.isBlock && item.type === 'container') {
+      element = item
+      break
+    }
+    i--
+  }
+
+  return element
+}
+
+function setFocus(item: MarkdanSchemaElement, offset: number, elements: MarkdanSchemaElement[]) {
+  const container = item.type === 'image' && item.groupIds.length === 0
+    ? item
+    : ['th', 'td'].includes(item.type)
+      ? getTableContainer(item.groupIds, elements)
+      : getContainer(item.groupIds, elements)
+
+  const focusIds: string[] = []
+
+  const element = document.querySelector(`[data-id="${container?.id ?? item.id}"]`)
+  if (element) {
+    if (container) {
+      element.classList.add('focus')
+      focusIds.push(element.getAttribute('data-id') || '')
+    }
+    if (!container?.isBlock && offset === 0) {
+      const prevElement = element.previousElementSibling
+      if (prevElement?.classList.contains('is-container')) {
+        prevElement.classList.add('focus')
+        focusIds.push(prevElement.getAttribute('data-id') || '')
+      }
+    }
+    if (offset === item.content.length) {
+      const nextElement = element.nextElementSibling
+      if (nextElement?.classList.contains('is-container')) {
+        nextElement.classList.add('focus')
+        focusIds.push(nextElement.getAttribute('data-id') || '')
+      }
+    }
+  }
+
+  return focusIds
 }

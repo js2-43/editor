@@ -2,16 +2,21 @@ import { createRandomId } from '@markdan/helper'
 import type { HistoryRecordItem } from './history'
 import type { MarkdanContext } from '.'
 
-export interface MarkdanSchemaElement {
+export interface MarkdanSchemaElement extends Record<string, any> {
   id: string
   version: number
   versionNonce: number
   updated: number
-  isDeleted: boolean
+  // isDeleted: boolean
+
+  isContainer: boolean
+  isBlock: boolean
+  isSymbol: boolean
 
   type: string /** ElementType */
   groupIds: string[]
   content: string
+  attrs?: Record<string, string>
 }
 
 let version = 1
@@ -29,7 +34,19 @@ export function createSchemaApi(ctx: MarkdanContext) {
 
   let trace = true
 
-  function createElement<T extends string>(type: T, groupIds: string[] = [], content = ''): MarkdanSchemaElement {
+  function createElement<T extends string>(
+    type: T,
+    groupIds: string[] = [],
+    content = '',
+    props: Partial<Pick<MarkdanSchemaElement, 'attrs' | 'isContainer' | 'isBlock' | 'isSymbol'>> = {},
+  ): MarkdanSchemaElement {
+    const {
+      attrs,
+      isContainer = false,
+      isBlock = false,
+      isSymbol = false,
+    } = props
+
     return {
       id: createRandomId(),
       type,
@@ -38,7 +55,10 @@ export function createSchemaApi(ctx: MarkdanContext) {
       version: version++,
       versionNonce: Math.random() * 10,
       updated: Date.now(),
-      isDeleted: false,
+      attrs,
+      isContainer,
+      isBlock,
+      isSymbol,
     }
   }
 
@@ -163,6 +183,13 @@ export function createSchemaApi(ctx: MarkdanContext) {
           offset: index,
           ranges: [...ctx.selection.ranges.values()].map(({ id, anchorBlock, anchorOffset, focusBlock, focusOffset }) => ({ id, anchorBlock, anchorOffset, focusBlock, focusOffset })),
           currentRangeId: ctx.selection.currentRange?.id,
+        })
+
+        // 删除与其相关的选区
+        ctx.selection.ranges.forEach((range) => {
+          if (range.anchorBlock === element.id || range.focusBlock === element.id) {
+            ctx.selection.removeRange(range)
+          }
         })
       }
     })

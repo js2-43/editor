@@ -2,27 +2,31 @@
   display: flex;
   flex-direction: column;
   position: relative;
-  line-height: var(--line-height, 24px);
+  /* line-height: var(--line-height, 24px); */
+  line-height: 1.4;
   font-size: var(--font-size, 16px);
-  font-family: var(--font-family, "Courier New", Menlo, Monaco, monospace, Menlo, Monaco, "Courier New", monospace);
+  font-family: var(--font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji");
   font-feature-settings: "liga" 0, "calt" 0;
   font-variation-settings: normal;
   font-weight: normal;
   letter-spacing: 0;
-  user-select: none;
+  /* user-select: none; */
   color: var(--color-primary);
   border-radius: var(--radius);
   border: 1px solid var(--color-border);
   background-color: var(--color-bg-layer);
   overflow: hidden;
 
-  --gap: 20px;
+  /* --gap: 20px; */
   --gap-sm: 8px;
   --radius: 4px;
 
   --color-brand: #0088ff;
   --color-bg: #fff;
   --color-bg-layer: #f8f8f8;
+  --color-bg-code: #f4f4f4;
+  --color-bg-quote: hsla(0, 1%, 86%, 0.337);
+  --color-bg-table: #f8f8f8;
   --color-primary: #24292e;
   --color-secondary: #666;
   --color-border: hsla(0, 0%, 75%, 0.3);
@@ -35,11 +39,16 @@
   &.dark {
     --color-brand: #0088ff;
     --color-bg: #272822;
+    --color-bg-layer: #171814;
+    --color-bg-code: #434646;
+    --color-bg-quote: hsla(0, 0%, 35%, 0.663);
+    --color-bg-table: hsla(0, 0%, 33%, 0.463);
     --color-primary: #ecedee;
     --color-secondary: #90908a;
     --color-border: hsla(0, 0%, 80%, 0.3);
     --color-cursor: #f5f4f4;
     --color-selection: hsla(0, 0%, 100%, 0.2);
+    --color-scrollbar-track: hsla(0, 0%, 88%, 0.3);
     --color-scrollbar-slider: var(--color-border);
     --color-scrollbar-slider-active: hsla(0, 0%, 80%, 0.6);
   }
@@ -62,7 +71,7 @@
     display: none;
     padding: 0 var(--gap-sm);
     line-height: var(--line-height);
-    font-size: 12px;
+    font-size: 0.8em;
     text-align: right;
     border-top: 1px solid var(--color-border);
   }
@@ -85,7 +94,7 @@
   width: var(--width, 100%);
   height: var(--height, 100%);
   min-width: 0;
-  user-select: none;
+  /* user-select: none; */
   overflow: hidden;
 }
 
@@ -94,13 +103,18 @@
   left: 0;
   top: 0;
   z-index: 10;
-  padding-right: 16px;
+  width: 100%;
+  min-height: 100%;
+  padding: var(--gap);
+  box-sizing: border-box;
   cursor: text;
+  word-break: break-word;
+  white-space: pre-wrap;
 
   .view-line {
     position: absolute;
-    width: max-content;
-    white-space: pre-wrap;
+    /* width: max-content; */
+    /* white-space: pre-wrap; */
 
     &:empty::after,
     :empty::after {
@@ -109,19 +123,204 @@
   }
 
   * {
+    position: relative;
     margin: 0;
+    box-sizing: border-box;
+  }
+
+  > * {
+    position: absolute;
+    width: calc(100% - var(--gap) - var(--gap));
+  }
+
+  h1 { font-size: 2em; }
+  h2 { font-size: 1.8em; }
+  h3 { font-size: 1.6em; }
+  h4 { font-size: 1.4em;}
+  h5 { font-size: 1.2em; }
+  h6 { font-size: 1em; }
+
+  h1, h2, h3 {
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  img {
+    display: block;
+    width: 100%;
+  }
+
+  ul,
+  ol {
+    padding-left: 1em;
+  }
+
+  a {
+    color: var(--color-brand);
+  }
+
+  blockquote {
+    padding: 0 0 0 1em;
+
+    &.view-line {
+      background-color: var(--color-bg-quote);
+    }
+
+    &::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      height: 100%;
+      width: .2em;
+      background-color: var(--color-brand);
+    }
+
+    blockquote {
+      position: relative;
+    }
+  }
+
+  code {
+    padding: .2em .4em;
+    font-size: 0.8em;
+    border-radius: .2em;
+    background-color: var(--color-bg-code);
+
+    &.is-block {
+      display: block;
+      padding: var(--gap);
+
+      [data-language] {
+        position: absolute;
+        right: 0;
+        top: 0px;
+        width: 8em;
+        height: var(--gap);
+        text-align: center;
+        padding: 0 1em;
+        border: 0;
+        line-height: var(--gap);
+        color: var(--color-secondary);
+        background-color: transparent;
+        overflow: hidden;
+      }
+
+      pre {
+        font-size: .8em;
+        font-family: monospace;
+      }
+    }
+  }
+
+  table {
+    width: 100%;
+    border: 1px solid var(--color-border);
+    border-collapse: collapse;
+
+    th, td {
+      border: 1px solid var(--color-border);
+      padding: .2em .4em;
+    }
+
+    th {
+      font-size: 1.2em;
+    }
+
+    th,
+    tr:nth-child(even) {
+      background-color: var(--color-bg-table);
+    }
+  }
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.8em;
+    height: 1.8em;
+    border: 0;
+    border-radius: .2em;
+    background-color: transparent;
+    cursor: pointer;
+
+    .icon {
+      width: 1.4em;
+      height: 1.4em;
+      font-size: 1.4em;
+      fill: var(--color-primary);
+    }
+
+    &:hover .icon {
+      fill: var(--color-primary);
+    }
+  }
+
+  .is-symbol {
+    color: var(--color-secondary);
+  }
+
+  .is-block {
+    > .is-symbol {
+      display: none !important;
+    }
+  }
+
+  .is-symbol {
+    display: none;
+  }
+
+  .focus {
+    > .is-symbol {
+      display: inline !important;
+    }
+
+    > .table-toolbar {
+      display: flex;
+    }
+  }
+
+  .is-link {
+    :not([data-tag="link"]) {
+      display: none;
+    }
+
+    &.focus :not([data-tag="link"]) {
+      display: inline;
+    }
+  }
+
+  .task-checkbox {
+    margin: 0 .4em 0 -1em;
+  }
+
+  .table-toolbar {
+    display: none;
+    gap: .2em;
+    align-items: center;
+
+    > button {
+      &[data-action="delete"] {
+        margin-left: auto;
+      }
+
+      &:hover,
+      &.active {
+        background-color: var(--color-bg-table);
+      }
+    }
   }
 }
 
 :where(.markdan-editor-cursor) {
   display: none;
   position: absolute;
-  z-index: 9;
+  z-index: 11;
   width: 2px;
   height: var(--line-height);
   background-color: var(--color-cursor);
   opacity: 1;
   animation: mdOpacityAni linear 1.2s infinite;
+  pointer-events: none;
 }
 
 :where(.markdan-editor-range) {
@@ -202,7 +401,7 @@
 
 :where(.markdan-editor-line-number) {
   height: 100%;
-  padding: 0 16px;
+  padding: 0 1em;
 
   .wrapper {
     position: relative;
@@ -225,7 +424,7 @@
           content: '';
           display: none;
           position: absolute;
-          right: -8px;
+          right: -0.5em;
           top: 50%;
           width: 4px;
           height: 4px;
