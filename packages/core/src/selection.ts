@@ -396,6 +396,7 @@ export class EditorSelection {
 
   /**
    * 检测用户是否点击到了某个选区
+   * @todo - 使用新方式检测
    */
   #isClickRange(e: MouseEvent): EditorSelectionRange | false {
     const {
@@ -419,25 +420,33 @@ export class EditorSelection {
     ]
 
     const range = [...this.ranges].find((r) => {
-      return (r.rectangles ?? []).some(rect => isPointInRect({ x: left, y: top }, rect))
+      return (r.rangeArea ?? []).some(area => isPointInRect({ x: left, y: top }, {
+        x: area[0].x,
+        y: area[0].y,
+        width: area[1].x - area[0].x,
+        height: area[1].y - area[0].y,
+      }))
     })
 
     return range ?? false
   }
 
   /**
+   * 获取与当前正在进行的选区交叉的选区
    * @todo - 选区绘制形式变更，需要调整逻辑
    */
   #getIntersectionRanges() {
     const currentRange = this.#currentRange
     const ranges = [...this.ranges].filter(r => r !== currentRange)
 
-    const currentRectangles = currentRange?.rectangles || []
+    if (!currentRange) return []
 
-    if (currentRectangles.length === 0) return []
+    // const currentRectangles = currentRange?.rectangles || []
 
-    return ranges.filter(({ rectangles }) => {
-      return rectangles?.some(rect => EditorSelection.isRectIntersection(rect, currentRectangles))
+    // if (currentRectangles.length === 0) return []
+
+    return ranges.filter((range) => {
+      return EditorSelection.isRangesIntersection(currentRange, range)
     })
   }
 
@@ -471,11 +480,39 @@ export class EditorSelection {
     this.#ctx.emitter.emit('elements:size:change', affectedBlocks)
   }
 
-  static isRectIntersection(rect1: Rectangle, rects: Rectangle[]): boolean {
-    return rects.some((rect2) => {
+  /**
+   * 比较两个选区是否交叉
+   * @returns boolean
+   */
+  static isRangesIntersection(
+    {
+      rangeArea: rangeArea1,
+    }: EditorSelectionRange,
+    {
+      rangeArea: rangeArea2,
+    }: EditorSelectionRange,
+  ): boolean {
+    const rects1 = rangeArea1.map(([point1, point2]) => {
+      return {
+        x: point1.x,
+        y: point1.y,
+        width: point2.x - point1.x,
+        height: point2.y - point1.y,
+      } as Rectangle
+    })
+    const rects2 = rangeArea2.map(([point1, point2]) => {
+      return {
+        x: point1.x,
+        y: point1.y,
+        width: point2.x - point1.x,
+        height: point2.y - point1.y,
+      } as Rectangle
+    })
+
+    return rects1.some(rect1 => rects2.some((rect2) => {
       return (isRectCross(rect1, rect2) || isRectContainRect(rect1, rect2))
         && getIntersectionArea(rect1, rect2) > 1
-    })
+    }))
   }
 }
 
@@ -532,7 +569,7 @@ function setFocus(item: MarkdanSchemaElement, offset: number, elements: MarkdanS
         focusIds.push(prevElement.getAttribute('data-id') || '')
       }
     }
-    if (offset === item.content.length) {
+    if (offset !== 0 && offset === item.content.length) {
       const nextElement = element.nextElementSibling
       if (nextElement?.classList.contains('is-container')) {
         nextElement.classList.add('focus')

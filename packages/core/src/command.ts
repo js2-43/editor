@@ -7,7 +7,6 @@ export interface MarkdanCommand {
 }
 
 export type CommandHandler = (...args: any[]) => any
-
 class Command {
   static DEFAULT = 'default'
   static UNAVAILABLE = 'unavailable'

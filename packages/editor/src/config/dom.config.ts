@@ -26,8 +26,10 @@ const classNames = [
   'editor-footer',
   'editor-viewer',
   'editor-cursor',
+  'editor-cursor-canvas',
   'editor-range',
   'editor-scrollbar',
+  'editor-locator',
   'editor-line-number',
 ] as const
 

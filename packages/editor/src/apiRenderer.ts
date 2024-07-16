@@ -110,6 +110,15 @@ export function createRendererApi(el: HTMLElement, ctx: MarkdanContext): EditorR
         // 设置容器最大的宽度
         ctx.config.maxWidth = Math.max(ctx.config.maxWidth, element.width)
 
+        // if (!element.locator) {
+        //   const oButton = createElement('button', {
+        //     class: CLASS_NAMES.editorLocator,
+        //   })
+        //   oButton.innerHTML = '<svg class="icon"><use xlink:href="#icon-vertical-move" /></svg>'
+        //   element.element.appendChild(oButton)
+        //   element.locator = oButton
+        // }
+
         return false
       })
     },

@@ -18,6 +18,7 @@ export interface EditorUI {
   toolbar: HTMLElement
   main: HTMLElement
   cursor: HTMLElement
+  cursorCanvas: HTMLCanvasElement
   scrollbar: HTMLElement
   lineNumber: HTMLElement | null
   container: HTMLElement
@@ -37,7 +38,7 @@ export interface MarkdanInterfaceStyle {
   width: string
   height: string
   fontFamily: string
-  fontSize: number
+  fontSize: string
   lineHeight: number
 }
 
@@ -88,14 +89,19 @@ function initObserver(elements: Element[], callback?: (...args: any[]) => any) {
  *    - [absolute]cursor
  *    - [absolute]scrollbar
  *    - line-number
+ *    - locator
  *    - container
  *      - main-viewer
  *  - footer?
  * ```
  */
 function createEditorUI(ctx: MarkdanContext): EditorUI {
+  const cursorCanvas = createElement('canvas', { class: CLASS_NAMES.editorCursorCanvas })
+  cursorCanvas.width = ctx.config.containerRect.width
+  cursorCanvas.height = ctx.config.containerRect.height
+
   const lineNumber = ctx.config.lineNumber ? createElement('aside', null) : null
-  const cursor = createElement('div', null)
+  const cursor = createElement('div', null, [cursorCanvas])
   const scrollbar = createElement('div', null)
 
   const mainViewer = createElement('div', { class: CLASS_NAMES.editorViewer })
@@ -125,6 +131,7 @@ function createEditorUI(ctx: MarkdanContext): EditorUI {
     toolbar,
     main,
     cursor,
+    cursorCanvas,
     scrollbar,
     lineNumber,
     container,

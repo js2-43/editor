@@ -6,6 +6,7 @@ export interface MarkdanRenderedElement extends Rectangle {
   id: string
   lineHeight: number
   element: HTMLElement
+  // locator?: HTMLElement
 }
 
 export function patchRenderedElements(affectedElements: Set<[HTMLElement | null, ...AffectedViewLine]>, ctx: MarkdanContext): MarkdanRenderedElement[] {

@@ -461,7 +461,7 @@
   {
     "id": "38",
     "isContainer": false,
-    "isBlock": false,
+    "isBlock": true,
     "isSymbol": false,
     "type": "listItem",
     "groupIds": ["23", "32", "136"],
