@@ -120,6 +120,12 @@
     :empty::after {
       content: '\200B'
     }
+
+    &:hover {
+      .markdan-editor-locator {
+        display: flex;
+      }
+    }
   }
 
   * {
@@ -321,6 +327,13 @@
   opacity: 1;
   animation: mdOpacityAni linear 1.2s infinite;
   pointer-events: none;
+}
+:where(.markdan-editor-cursor-canvas) {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 11;
+  pointer-events: none
 }
 
 :where(.markdan-editor-range) {

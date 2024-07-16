@@ -230,4 +230,22 @@ export function createSchemaApi(ctx: MarkdanContext) {
   }
 }
 
+export function getViewLineId(id: string, elements: MarkdanSchemaElement[]) {
+  const groupIds = elements.find(el => el.id === id)?.groupIds ?? []
+
+  let viewLineId = id
+  let i = groupIds.length
+
+  while (i >= 0) {
+    const item = elements.find(el => el.id === groupIds[i])
+    if (item?.isBlock) {
+      viewLineId = item.id
+      break
+    }
+    i--
+  }
+
+  return viewLineId
+}
+
 export type MarkdanSchema = ReturnType<typeof createSchemaApi>

@@ -1,6 +1,8 @@
-import { type Rectangle, createRandomId, isPointInRect, setOriginalRange } from '@markdan/helper'
+import type { Point } from '@markdan/helper'
+import { type Rectangle, correctionCursorTop, createRandomId, getRangePosition, isPointInRect, setOriginalRange } from '@markdan/helper'
 import type { MarkdanContext } from './apiCreateApp'
 import { getMouseOverElement } from './selection'
+import { getViewLineId } from './schema'
 
 export class EditorSelectionRange {
   #ctx: MarkdanContext
@@ -66,6 +68,84 @@ export class EditorSelectionRange {
       anchorOffset,
       focusBlock,
       focusOffset,
+    }
+  }
+
+  get rangeArea(): [Point, Point][] {
+    if (this.isCollapsed) return []
+
+    const {
+      physicsRange: {
+        anchorBlock,
+        anchorOffset,
+        focusBlock,
+        focusOffset,
+      },
+    } = this
+
+    const {
+      config: {
+        containerRect: { width },
+        gap,
+      },
+    } = this.#ctx
+
+    const anchorRect = EditorSelectionRange.getCursorPosition(anchorBlock, anchorOffset, this.#ctx)
+    const focusRect = EditorSelectionRange.getCursorPosition(focusBlock, focusOffset, this.#ctx)
+    if (!anchorRect || !focusRect) return []
+
+    if (anchorRect.top === focusRect.top) {
+      return [[
+        {
+          x: anchorRect.left,
+          y: anchorRect.top,
+        },
+        {
+          x: focusRect.left,
+          y: focusRect.top + focusRect.height,
+        },
+      ]]
+    } else {
+      return [
+        [
+          {
+            x: anchorRect.left,
+            y: anchorRect.top,
+          },
+          {
+            x: width - gap,
+            y: anchorRect.top + anchorRect.height,
+          },
+        ],
+        [
+          {
+            x: 0 + gap,
+            y: anchorRect.top + anchorRect.height,
+          },
+          {
+            x: width - gap,
+            y: focusRect.top,
+          },
+        ],
+        [
+          {
+            x: 0 + gap,
+            y: focusRect.top,
+          },
+          {
+            x: focusRect.left,
+            y: focusRect.top + focusRect.height,
+          },
+        ],
+      ]
+      // c.moveTo(anchorRect.left, anchorRect.top)
+      // c.lineTo(width - gap, anchorRect.top)
+      // c.lineTo(width - gap, focusRect.top)
+      // c.lineTo(focusRect.left, focusRect.top)
+      // c.lineTo(focusRect.left, focusRect.top + focusRect.height)
+      // c.lineTo(0 + gap, focusRect.top + focusRect.height)
+      // c.lineTo(0 + gap, anchorRect.top + anchorRect.height)
+      // c.lineTo(anchorRect.left, anchorRect.top + anchorRect.height)
     }
   }
 
@@ -313,6 +393,55 @@ export class EditorSelectionRange {
         y,
         action: 'scrollBy',
       })
+    }
+  }
+
+  static getCursorPosition(blockId: string, offset: number, ctx: MarkdanContext) {
+    const {
+      config: {
+        containerRect: {
+          x,
+          y,
+        },
+      },
+      schema: { elements },
+      interface: {
+        ui: {
+          mainViewer,
+          lineNumber,
+        },
+        scrollbar: {
+          scrollX,
+          scrollY,
+        },
+      },
+    } = ctx
+
+    const rect = getRangePosition(blockId, offset, mainViewer)
+
+    if (!rect) return
+
+    const viewLineId = getViewLineId(blockId, elements)
+
+    let element = mainViewer.querySelector(`[data-id="${viewLineId}"]`)!
+
+    if (element.tagName === 'CODE' && element.querySelector('pre')) {
+      element = element.querySelector('pre')!
+    }
+    if (element.tagName === 'TR') {
+      element = element.querySelector('td,th')!
+    }
+
+    const computedStyle = getComputedStyle(element)
+    const lineNumberWidth = lineNumber ? lineNumber.getBoundingClientRect().width : 0
+
+    const { top } = element.getBoundingClientRect()
+    const t = correctionCursorTop(rect.top, top, computedStyle.lineHeight, computedStyle.paddingTop)
+
+    return {
+      left: rect.left - x + lineNumberWidth + scrollX,
+      top: t + scrollY - y,
+      height: parseFloat(computedStyle.lineHeight),
     }
   }
 }
